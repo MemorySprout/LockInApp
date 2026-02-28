@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import cors from 'cors';
 import authRoutes from './modules/auth/auth.routes';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
@@ -6,6 +7,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const app = express();
+
+app.use(cors({ origin: '*' }));
 app.use(express.json());
 const PORT: number = 3000;
 
