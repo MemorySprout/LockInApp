@@ -1,27 +1,26 @@
-import mongoose, { Document, Schema } from 'mongoose'; 
-import btcrypt from 'bcrypt';
-
+import mongoose, { Document, Schema } from 'mongoose';
+import bcrypt from 'bcrypt';
 
 export interface IUser extends Document {
-    email: string;
-    password: string;
-    providers: string[];
-    refreshToken?: string;
-    comparePassword(password: string): Promise<boolean>;
+  email: string;
+  passwordHash: string;
+  providers: string[];
+  refreshToken?: string;
+  comparePassword(password: string): Promise<boolean>;
 }
 
-
-const UserSchema: Schema = new Schema({
-    email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
+const UserSchema = new Schema<IUser>(
+  {
+    email: { type: String, required: true, unique: true, lowercase: true },
+    passwordHash: { type: String, required: true },
     providers: { type: [String], default: [] },
-    refreshToken: { type: String }
-}, { timestamps: true });
+    refreshToken: { type: String },
+  },
+  { timestamps: true }
+);
 
-
-UserSchema.methods.comporePassword = async function (password: string): Promise<boolean> {
-    return btcrypt.compare(password, this.password);
-}
-
+UserSchema.methods.comparePassword = function (password: string) {
+  return bcrypt.compare(password, this.passwordHash);
+};
 
 export const User = mongoose.model<IUser>('User', UserSchema);
