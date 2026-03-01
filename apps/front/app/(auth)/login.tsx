@@ -6,8 +6,10 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { api, oauthLogin } from '@/services/api';
+import { useAuth } from '@/context/auth-context';
 
 export default function LoginScreen() {
+  const { refreshAuthState } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -21,6 +23,7 @@ export default function LoginScreen() {
     try {
       setLoading(true);
       await api.login({ email, password });
+      await refreshAuthState();
       router.replace('/(tabs)');
     } catch (e: any) {
       Alert.alert('Login failed', e.message);
@@ -34,6 +37,7 @@ export default function LoginScreen() {
         setLoading(true);
         const success = await oauthLogin();
         if (success) {
+          await refreshAuthState();
           router.replace('/(tabs)');
         }
       } catch (e: any) {
@@ -47,50 +51,61 @@ export default function LoginScreen() {
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <Text style={styles.title}>Welcome Back</Text>
+      <View style={styles.formContainer}>
+        <Text style={styles.title}>Welcome Back</Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Password"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+        />
 
-      <TouchableOpacity
-        style={[styles.googleButton, loading && styles.buttonDisabled]}
-        onPress={handleGoogleLogin}
-        disabled={loading}>
-        <Text>Continue with Google</Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.googleButton, loading && styles.buttonDisabled]}
+          onPress={handleGoogleLogin}
+          disabled={loading}>
+          <Text>Continue with Google</Text>
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        style={[styles.button, loading && styles.buttonDisabled]}
-        onPress={handleLogin}
-        disabled={loading}>
-        {loading
-          ? <ActivityIndicator color="#fff" />
-          : <Text style={styles.buttonText}>Log In</Text>}
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.button, loading && styles.buttonDisabled]}
+          onPress={handleLogin}
+          disabled={loading}>
+          {loading
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={styles.buttonText}>Log In</Text>}
+        </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
-        <Text style={styles.link}>Don't have an account? Register</Text>
-      </TouchableOpacity>
-
+        <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
+          <Text style={styles.link}>Don't have an account? Register</Text>
+        </TouchableOpacity>
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#fff' },
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+    backgroundColor: '#fff'
+  },
+  formContainer: {
+    width: '100%',
+    maxWidth: 450,
+  },
   title: { fontSize: 28, fontWeight: 'bold', marginBottom: 32 },
   input: {
     borderWidth: 1, borderColor: '#ddd', borderRadius: 10,

@@ -77,3 +77,9 @@ web_modules/
 *.tgz
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Claude CLI
+.claude/
+.claude.json
+.anthropic/
+claude.json

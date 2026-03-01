@@ -2,6 +2,25 @@ import bcrypt from 'bcrypt';
 import { User } from '../../models/user.model';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../utils/jwt';
 
+const validatePassword = (password: string): { valid: boolean; message?: string } => {
+  if (password.length < 8) {
+    return { valid: false, message: 'Password must be at least 8 characters' };
+  }
+  if (!/[A-Z]/.test(password)) {
+    return { valid: false, message: 'Password must contain at least one uppercase letter' };
+  }
+  if (!/[a-z]/.test(password)) {
+    return { valid: false, message: 'Password must contain at least one lowercase letter' };
+  }
+  if (!/[0-9]/.test(password)) {
+    return { valid: false, message: 'Password must contain at least one number' };
+  }
+  if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+    return { valid: false, message: 'Password must contain at least one special character' };
+  }
+  return { valid: true };
+};
+
 export const registerUser = async (email: string, username: string, password: string) => {
   const existingEmail = await User.findOne({ email });
   if (existingEmail) throw new Error('Email already in use');
@@ -9,7 +28,10 @@ export const registerUser = async (email: string, username: string, password: st
   const existingUsername = await User.findOne({ username });
   if (existingUsername) throw new Error('Username already taken');
 
-  if (password.length < 8) throw new Error('Password must be at least 8 characters');
+  const passwordValidation = validatePassword(password);
+  if (!passwordValidation.valid) {
+    throw new Error(passwordValidation.message);
+  }
 
   const passwordHash = await bcrypt.hash(password, 12);
   const user = await User.create({ email, username, passwordHash });
@@ -26,7 +48,9 @@ export const registerUser = async (email: string, username: string, password: st
 
 export const loginUser = async (email: string, password: string) => {
   const user = await User.findOne({ email });
-  if (!user) throw new Error('Invalid credentials');
+  if (!user || !user.passwordHash) {
+    throw new Error('Invalid credentials');
+  }
 
   const valid = await user.comparePassword(password);
   if (!valid) throw new Error('Invalid credentials');

@@ -1,6 +1,7 @@
 import { storage } from './storage';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
+import { notifySessionExpired } from './session-service';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -31,6 +32,7 @@ const authFetch = async (url: string, options: RequestInit = {}): Promise<Respon
 
     if (!refreshRes.ok) {
       await clearTokens();
+      notifySessionExpired();
       throw new Error('SESSION_EXPIRED');
     }
 
