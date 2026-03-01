@@ -1,9 +1,18 @@
+import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { storage } from './storage';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { notifySessionExpired } from './session-service';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+
+const axiosInstance = axios.create({
+  baseURL: BASE_URL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
 
 export const storeTokens = async (accessToken: string, refreshToken: string) => {
   await storage.setItem('accessToken', accessToken);
@@ -15,67 +24,112 @@ export const clearTokens = async () => {
   await storage.deleteItem('refreshToken');
 };
 
-const authFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
-  const accessToken = await storage.getItem('accessToken');
-  const res = await fetch(url, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`, ...options.headers },
-  });
+let isRefreshing = false;
+let refreshSubscribers: ((token: string) => void)[] = [];
 
-  if (res.status === 401) {
-    const refreshToken = await storage.getItem('refreshToken');
-    const refreshRes = await fetch(`${BASE_URL}/api/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
-    });
+const onTokenRefreshed = (token: string) => {
+  refreshSubscribers.forEach((callback) => callback(token));
+  refreshSubscribers = [];
+};
 
-    if (!refreshRes.ok) {
-      await clearTokens();
-      notifySessionExpired();
-      throw new Error('SESSION_EXPIRED');
+const addRefreshSubscriber = (callback: (token: string) => void) => {
+  refreshSubscribers.push(callback);
+};
+
+axiosInstance.interceptors.request.use(
+  async (config: InternalAxiosRequestConfig) => {
+    const token = await storage.getItem('accessToken');
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+axiosInstance.interceptors.response.use(
+  (response) => response,
+  async (error: AxiosError) => {
+    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      if (!isRefreshing) {
+        isRefreshing = true;
+
+        try {
+          const refreshToken = await storage.getItem('refreshToken');
+
+          if (!refreshToken) {
+            throw new Error('No refresh token available');
+          }
+
+          const response = await axios.post(`${BASE_URL}/api/auth/refresh`, {
+            refreshToken,
+          });
+
+          const { accessToken, refreshToken: newRefreshToken } = response.data;
+          await storeTokens(accessToken, newRefreshToken);
+
+          isRefreshing = false;
+          onTokenRefreshed(accessToken);
+
+          if (originalRequest.headers) {
+            originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+          }
+          return axiosInstance(originalRequest);
+        } catch (refreshError) {
+          isRefreshing = false;
+          refreshSubscribers = [];
+          await clearTokens();
+          notifySessionExpired();
+          return Promise.reject(refreshError);
+        }
+      }
+
+      return new Promise((resolve) => {
+        addRefreshSubscriber((token: string) => {
+          if (originalRequest.headers) {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+          }
+          resolve(axiosInstance(originalRequest));
+        });
+      });
     }
 
-    const { accessToken: newAccess, refreshToken: newRefresh } = await refreshRes.json();
-    await storeTokens(newAccess, newRefresh);
-
-    return fetch(url, {
-      ...options,
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${newAccess}`, ...options.headers },
-    });
+    return Promise.reject(error);
   }
-
-  return res;
-};
+);
 
 export const api = {
   register: async (data: { email: string; username: string; password: string }) => {
-    const res = await fetch(`${BASE_URL}/api/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) throw new Error((await res.json()).message ?? 'Registration failed');
-    const json = await res.json();
-    await storeTokens(json.accessToken, json.refreshToken);
-    return json;
+    try {
+      const response = await axiosInstance.post('/api/auth/register', data);
+      await storeTokens(response.data.accessToken, response.data.refreshToken);
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.message || 'Registration failed');
+    }
   },
 
   login: async (data: { email: string; password: string }) => {
-    const res = await fetch(`${BASE_URL}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) throw new Error((await res.json()).message ?? 'Login failed');
-    const json = await res.json();
-    await storeTokens(json.accessToken, json.refreshToken);
-    return json;
+    try {
+      const response = await axiosInstance.post('/api/auth/login', data);
+      await storeTokens(response.data.accessToken, response.data.refreshToken);
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.message || 'Login failed');
+    }
   },
 
   logout: async () => {
-    try { await authFetch(`${BASE_URL}/api/auth/logout`, { method: 'POST' }); } catch {}
-    await clearTokens();
+    try {
+      await axiosInstance.post('/api/auth/logout');
+    } catch (error) {
+    } finally {
+      await clearTokens();
+    }
   },
 };
 
@@ -108,7 +162,7 @@ const webOAuthLogin = async (): Promise<boolean> => {
 const nativeOAuthLogin = async (): Promise<boolean> => {
   try {
     const redirectUri = Linking.createURL('oauth-callback');
-    
+
     const result = await WebBrowser.openAuthSessionAsync(
       `${BASE_URL}/api/oauth/google?redirect_uri=${encodeURIComponent(redirectUri)}`,
       redirectUri,
@@ -120,16 +174,16 @@ const nativeOAuthLogin = async (): Promise<boolean> => {
     if (result.type === 'success') {
       const url = result.url;
       console.log('OAuth Callback URL:', url);
-      
+
       const parsed = Linking.parse(url);
       const params = parsed.queryParams || {};
-      
+
       const accessToken = params.accessToken as string;
       const refreshToken = params.refreshToken as string;
 
       if (accessToken && refreshToken) {
         await storeTokens(accessToken, refreshToken);
-        return true; 
+        return true;
       } else {
         console.error('Missing tokens in redirect:', params);
         throw new Error('Tokens missing from redirect URL');
@@ -139,7 +193,7 @@ const nativeOAuthLogin = async (): Promise<boolean> => {
       return false;
     }
 
-    return false; 
+    return false;
   } catch (error: any) {
     console.error("Native OAuth Error: ", error);
     throw error;
@@ -170,4 +224,4 @@ if (isWeb && typeof window !== 'undefined') {
   }
 }
 
-export { authFetch };
+export { axiosInstance };
