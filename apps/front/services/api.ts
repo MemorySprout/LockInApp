@@ -61,8 +61,10 @@ axiosInstance.interceptors.response.use(
         try {
           const refreshToken = await storage.getItem('refreshToken');
 
+          // If no refresh token, user was never logged in - just reject without session expired notification
           if (!refreshToken) {
-            throw new Error('No refresh token available');
+            isRefreshing = false;
+            return Promise.reject(error);
           }
 
           const response = await axios.post(`${BASE_URL}/api/auth/refresh`, {
@@ -83,6 +85,7 @@ axiosInstance.interceptors.response.use(
           isRefreshing = false;
           refreshSubscribers = [];
           await clearTokens();
+          // Only notify session expired if refresh token existed (user was logged in)
           notifySessionExpired();
           return Promise.reject(refreshError);
         }
@@ -127,6 +130,7 @@ export const api = {
     try {
       await axiosInstance.post('/api/auth/logout');
     } catch (error) {
+      // Intentionally ignore - we clear tokens locally regardless of server response
     } finally {
       await clearTokens();
     }
@@ -143,20 +147,14 @@ export const oauthLogin = async () => {
       return await nativeOAuthLogin();
     }
   } catch (error: any) {
-    console.error("OAuth Error: ", error);
     throw new Error(error.message || 'Google login failed');
   }
 };
 
 const webOAuthLogin = async (): Promise<boolean> => {
-  try {
-    const currentUrl = window.location.href;
-    window.location.href = `${BASE_URL}/api/oauth/google?redirect_uri=${encodeURIComponent(currentUrl)}`;
-    return true;
-  } catch (error: any) {
-    console.error("Web OAuth Error: ", error);
-    throw error;
-  }
+  const currentUrl = window.location.href;
+  window.location.href = `${BASE_URL}/api/oauth/google?redirect_uri=${encodeURIComponent(currentUrl)}`;
+  return true;
 };
 
 const nativeOAuthLogin = async (): Promise<boolean> => {
@@ -173,8 +171,6 @@ const nativeOAuthLogin = async (): Promise<boolean> => {
 
     if (result.type === 'success') {
       const url = result.url;
-      console.log('OAuth Callback URL:', url);
-
       const parsed = Linking.parse(url);
       const params = parsed.queryParams || {};
 
@@ -185,17 +181,14 @@ const nativeOAuthLogin = async (): Promise<boolean> => {
         await storeTokens(accessToken, refreshToken);
         return true;
       } else {
-        console.error('Missing tokens in redirect:', params);
         throw new Error('Tokens missing from redirect URL');
       }
     } else if (result.type === 'cancel') {
-      console.log('OAuth cancelled by user');
       return false;
     }
 
     return false;
   } catch (error: any) {
-    console.error("Native OAuth Error: ", error);
     throw error;
   }
 };
@@ -214,7 +207,7 @@ if (isWeb && typeof window !== 'undefined') {
         return true;
       }
     } catch (error) {
-      console.error('OAuth callback handling error:', error);
+      // Silent fail - callback will be retried
     }
     return false;
   };

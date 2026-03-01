@@ -47,7 +47,6 @@ export default function RegisterScreen() {
   const handleRegister = async () => {
     clearErrors();
 
-    // Validate all fields first
     const newErrors = { username: '', email: '', password: '', confirmPassword: '', general: '' };
 
     if (!username) newErrors.username = 'Username is required';
@@ -64,14 +63,12 @@ export default function RegisterScreen() {
       newErrors.password = 'Password does not meet all requirements';
     }
 
-    // Separate validation for confirm password
     if (!confirmPassword) {
       newErrors.confirmPassword = 'Please confirm your password';
     } else if (password && password !== confirmPassword) {
       newErrors.confirmPassword = 'Passwords do not match';
     }
 
-    // If there are validation errors, show them and stop
     if (newErrors.username || newErrors.email || newErrors.password || newErrors.confirmPassword) {
       setErrors(newErrors);
       return;
@@ -81,14 +78,11 @@ export default function RegisterScreen() {
       setLoading(true);
       await api.register({ username, email, password });
       await refreshAuthState();
-      // After registration, tokens are stored and user is logged in
       router.replace('/(tabs)');
     } catch (e: any) {
-      // Handle specific error cases with inline errors
       const errorMessage = e.message || 'Registration failed';
       const newErrors = { username: '', email: '', password: '', confirmPassword: '', general: '' };
 
-      // Parse multiple errors separated by " | "
       const errorParts = errorMessage.split(' | ');
 
       errorParts.forEach((error: string) => {
@@ -101,7 +95,6 @@ export default function RegisterScreen() {
         } else if (error.includes('Password must')) {
           newErrors.password = error;
         } else if (error.trim() && !newErrors.general) {
-          // Only set general error if it's not one of the specific errors
           newErrors.general = error;
         }
       });

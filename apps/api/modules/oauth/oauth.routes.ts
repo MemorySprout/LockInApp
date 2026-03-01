@@ -1,8 +1,6 @@
 import { Router } from 'express';
 import * as oauthController from './oauth.controller';
 import passport from '../../utils/passport';
-import session from 'express-session';
-import { signAccessToken, signRefreshToken } from '../../utils/jwt';
 
 const router = Router();
 

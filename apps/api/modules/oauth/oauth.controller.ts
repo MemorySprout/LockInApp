@@ -30,7 +30,6 @@ export const googleOAuthCallback = async (req: Request, res: Response) => {
             `${redirectUri}?accessToken=${accessToken}&refreshToken=${refreshToken}&userId=${user._id}`
         );
     } catch (err) {
-        console.error('Google OAuth callback error:', err);
         res.status(500).json({ message: 'Internal server error' });
     }
 };
@@ -47,7 +46,6 @@ export const linkProvider = async (req: Request, res: Response) => {
         }
         res.json({ message: 'Provider linked successfully', providers: user.providers });
     }catch(err){
-        console.error('Error linking provider:', err);
         res.status(500).json({ message: 'Internal server error' });
     }
 };
@@ -61,7 +59,6 @@ export const unLinkProvider = async (req: Request, res: Response) => {
         await user.save();
         res.json({ message: 'Provider unlinked successfully', providers: user.providers });
     }catch(err){
-        console.error('Error unlinking provider:', err);
         res.status(500).json({ message: 'Internal server error' });
     }
 };

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, KeyboardAvoidingView,
-  Platform, Alert,
+  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { api, oauthLogin } from '@/services/api';
@@ -15,10 +15,38 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [errors, setErrors] = useState({
+    email: '',
+    password: '',
+    general: ''
+  });
+
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const clearErrors = () => {
+    setErrors({ email: '', password: '', general: '' });
+  };
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+    clearErrors();
+
+    const newErrors = { email: '', password: '', general: '' };
+
+    if (!email) {
+      newErrors.email = 'Email is required';
+    } else if (!validateEmail(email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+
+    if (!password) {
+      newErrors.password = 'Password is required';
+    }
+
+    if (newErrors.email || newErrors.password) {
+      setErrors(newErrors);
       return;
     }
 
@@ -28,26 +56,46 @@ export default function LoginScreen() {
       await refreshAuthState();
       router.replace('/(tabs)');
     } catch (e: any) {
-      Alert.alert('Login failed', e.message);
+      const errorMessage = e.message || 'Login failed';
+
+      // For security, don't reveal if email exists or not
+      // Just show general error for invalid credentials
+      if (errorMessage.includes('Invalid credentials')) {
+        setErrors({
+          email: '',
+          password: '',
+          general: 'Invalid email or password. Please try again.'
+        });
+      } else {
+        setErrors({
+          email: '',
+          password: '',
+          general: errorMessage
+        });
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleGoogleLogin = async () => {
-      try {
-        setLoading(true);
-        const success = await oauthLogin();
-        if (success) {
-          await refreshAuthState();
-          router.replace('/(tabs)');
-        }
-      } catch (e: any) {
-        Alert.alert('Google Login failed', e.message);
-      } finally {
-        setLoading(false);
+    try {
+      setLoading(true);
+      const success = await oauthLogin();
+      if (success) {
+        await refreshAuthState();
+        router.replace('/(tabs)');
       }
-    };
+    } catch (e: any) {
+      setErrors({
+        email: '',
+        password: '',
+        general: e.message || 'Google login failed. Please try again.'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -56,31 +104,54 @@ export default function LoginScreen() {
       <View style={styles.formContainer}>
         <Text style={styles.title}>Welcome Back</Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-        <View style={styles.passwordContainer}>
+        {errors.general ? (
+          <View style={styles.generalError}>
+            <Text style={styles.generalErrorText}>{errors.general}</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.inputContainer}>
           <TextInput
-            style={styles.passwordInput}
-            placeholder="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPassword}
+            style={[styles.input, errors.email && styles.inputError]}
+            placeholder="Email"
+            value={email}
+            onChangeText={(text) => {
+              setEmail(text);
+              if (errors.email) setErrors({ ...errors, email: '' });
+            }}
+            keyboardType="email-address"
+            autoCapitalize="none"
           />
-          <TouchableOpacity
-            style={styles.eyeIcon}
-            onPress={() => setShowPassword(!showPassword)}>
-            <Ionicons
-              name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-              size={24}
-              color="#666"
+          {errors.email ? (
+            <Text style={styles.errorText}>{errors.email}</Text>
+          ) : null}
+        </View>
+
+        <View style={styles.inputContainer}>
+          <View style={[styles.passwordContainer, errors.password && styles.inputError]}>
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="Password"
+              value={password}
+              onChangeText={(text) => {
+                setPassword(text);
+                if (errors.password) setErrors({ ...errors, password: '' });
+              }}
+              secureTextEntry={!showPassword}
             />
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.eyeIcon}
+              onPress={() => setShowPassword(!showPassword)}>
+              <Ionicons
+                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                size={24}
+                color="#666"
+              />
+            </TouchableOpacity>
+          </View>
+          {errors.password ? (
+            <Text style={styles.errorText}>{errors.password}</Text>
+          ) : null}
         </View>
 
         <TouchableOpacity
@@ -120,9 +191,37 @@ const styles = StyleSheet.create({
     maxWidth: 450,
   },
   title: { fontSize: 28, fontWeight: 'bold', marginBottom: 32 },
+  inputContainer: {
+    marginBottom: 16,
+  },
   input: {
     borderWidth: 1, borderColor: '#ddd', borderRadius: 10,
-    padding: 14, marginBottom: 16, fontSize: 16, backgroundColor: '#fafafa',
+    padding: 14, fontSize: 16, backgroundColor: '#fafafa',
+  },
+  inputError: {
+    borderColor: '#FF6B6B',
+    borderWidth: 2,
+    backgroundColor: '#FFF5F5',
+  },
+  errorText: {
+    color: '#FF6B6B',
+    fontSize: 13,
+    marginTop: 6,
+    marginLeft: 4,
+  },
+  generalError: {
+    backgroundColor: '#FFEBEE',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#FF6B6B',
+  },
+  generalErrorText: {
+    color: '#D32F2F',
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
   },
   passwordContainer: {
     flexDirection: 'row',
@@ -131,7 +230,6 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
     borderRadius: 10,
     backgroundColor: '#fafafa',
-    marginBottom: 16,
   },
   passwordInput: {
     flex: 1,

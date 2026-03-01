@@ -33,7 +33,6 @@ export const registerUser = async (email: string, username: string, password: st
   // Check all validation errors at once
   const errors: string[] = [];
 
-  // Validate email format first
   if (!validateEmail(email)) {
     errors.push('Invalid email format');
   }
