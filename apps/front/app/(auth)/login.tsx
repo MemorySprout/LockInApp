@@ -5,7 +5,7 @@ import {
   Platform, Alert,
 } from 'react-native';
 import { router } from 'expo-router';
-import { api } from '@/services/api';
+import { api, oauthLogin } from '@/services/api';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -28,6 +28,20 @@ export default function LoginScreen() {
       setLoading(false);
     }
   };
+
+  const handleGoogleLogin = async () => {
+      try {
+        setLoading(true);
+        const success = await oauthLogin();
+        if (success) {
+          router.replace('/(tabs)');
+        }
+      } catch (e: any) {
+        Alert.alert('Google Login failed', e.message);
+      } finally {
+        setLoading(false);
+      }
+    };
 
   return (
     <KeyboardAvoidingView
@@ -52,6 +66,13 @@ export default function LoginScreen() {
       />
 
       <TouchableOpacity
+        style={[styles.googleButton, loading && styles.buttonDisabled]}
+        onPress={handleGoogleLogin}
+        disabled={loading}>
+        <Text style={styles.googleButtonText}>Continue with Google</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
         style={[styles.button, loading && styles.buttonDisabled]}
         onPress={handleLogin}
         disabled={loading}>
@@ -60,9 +81,6 @@ export default function LoginScreen() {
           : <Text style={styles.buttonText}>Log In</Text>}
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
-        <Text style={styles.link}>Don't have an account? Register</Text>
-      </TouchableOpacity>
     </KeyboardAvoidingView>
   );
 }
@@ -81,4 +99,9 @@ const styles = StyleSheet.create({
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   link: { color: '#6C63FF', textAlign: 'center', fontSize: 14 },
+  googleButton: {
+    backgroundColor: '#fff', borderRadius: 10,
+    padding: 16, alignItems: 'center', marginBottom: 16,
+    borderWidth: 1, borderColor: '#ddd'
+  },
 });

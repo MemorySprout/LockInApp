@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import session from 'express-session';
 import cors from 'cors';
 import authRoutes from './modules/auth/auth.routes';
+import oauthRoutes from './modules/oauth/oauth.routes';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import passport from 'passport';
@@ -34,6 +35,7 @@ app.use(passport.session());
 const PORT: number = 3000;
 
 app.use('/api/auth', authRoutes);
+app.use('/api/oauth', oauthRoutes);
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error(err);
   res.status(err.status || 500).json({ message: err.message || 'Internal Server Error' });

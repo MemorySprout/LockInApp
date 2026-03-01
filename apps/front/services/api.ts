@@ -1,4 +1,6 @@
 import { storage } from './storage';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -73,6 +75,33 @@ export const api = {
     try { await authFetch(`${BASE_URL}/api/auth/logout`, { method: 'POST' }); } catch {}
     await clearTokens();
   },
+};
+
+export const oauthLogin = async () => {
+  try {
+    const redirectUri = Linking.createURL('/(auth)/login');
+    const result = await WebBrowser.openAuthSessionAsync(
+      `${BASE_URL}/api/auth/google?redirectUri=${encodeURIComponent(redirectUri)}`,
+      redirectUri
+    );
+    if (result.type === 'success') {
+      const parsedUrl = Linking.parse(result.url);
+      const accessToken = parsedUrl.queryParams?.accessToken as string;
+      const refreshToken = parsedUrl.queryParams?.refreshToken as string;
+
+      if (accessToken && refreshToken) {
+        await storeTokens(accessToken, refreshToken);
+        return true; 
+      } else {
+        throw new Error('Tokens missing from redirect URL');
+      }
+    }
+
+    return false; 
+  } catch (error: any) {
+    console.error("OAuth Error: ", error);
+    throw new Error(error.message || 'Google login failed');
+  }
 };
 
 export { authFetch };
