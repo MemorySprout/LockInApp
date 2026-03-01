@@ -7,12 +7,14 @@ import {
 import { router } from 'expo-router';
 import { api, oauthLogin } from '@/services/api';
 import { useAuth } from '@/context/auth-context';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function LoginScreen() {
   const { refreshAuthState } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -62,13 +64,24 @@ export default function LoginScreen() {
           keyboardType="email-address"
           autoCapitalize="none"
         />
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={styles.passwordInput}
+            placeholder="Password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+          />
+          <TouchableOpacity
+            style={styles.eyeIcon}
+            onPress={() => setShowPassword(!showPassword)}>
+            <Ionicons
+              name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+              size={24}
+              color="#666"
+            />
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity
           style={[styles.googleButton, loading && styles.buttonDisabled]}
@@ -110,6 +123,23 @@ const styles = StyleSheet.create({
   input: {
     borderWidth: 1, borderColor: '#ddd', borderRadius: 10,
     padding: 14, marginBottom: 16, fontSize: 16, backgroundColor: '#fafafa',
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 10,
+    backgroundColor: '#fafafa',
+    marginBottom: 16,
+  },
+  passwordInput: {
+    flex: 1,
+    padding: 14,
+    fontSize: 16,
+  },
+  eyeIcon: {
+    padding: 10,
   },
   button: {
     backgroundColor: '#6C63FF', borderRadius: 10,
