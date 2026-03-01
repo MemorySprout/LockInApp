@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, KeyboardAvoidingView,
-  Platform, Alert, ScrollView,
+  Platform, ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { api } from '@/services/api';
@@ -16,10 +16,18 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({
+    username: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    general: ''
+  });
 
   const validatePassword = (pwd: string) => {
     return (
       pwd.length >= 8 &&
+      pwd.length <= 128 &&
       /[A-Z]/.test(pwd) &&
       /[a-z]/.test(pwd) &&
       /[0-9]/.test(pwd) &&
@@ -27,19 +35,45 @@ export default function RegisterScreen() {
     );
   };
 
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const clearErrors = () => {
+    setErrors({ username: '', email: '', password: '', confirmPassword: '', general: '' });
+  };
+
   const handleRegister = async () => {
-    if (!username || !email || !password || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
+    clearErrors();
+
+    // Validate all fields first
+    const newErrors = { username: '', email: '', password: '', confirmPassword: '', general: '' };
+
+    if (!username) newErrors.username = 'Username is required';
+    if (!email) {
+      newErrors.email = 'Email is required';
+    } else if (!validateEmail(email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+    if (!password) {
+      newErrors.password = 'Password is required';
+    } else if (password.length > 128) {
+      newErrors.password = 'Password is too long (max 128 characters)';
+    } else if (!validatePassword(password)) {
+      newErrors.password = 'Password does not meet all requirements';
     }
 
-    if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
+    // Separate validation for confirm password
+    if (!confirmPassword) {
+      newErrors.confirmPassword = 'Please confirm your password';
+    } else if (password && password !== confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match';
     }
 
-    if (!validatePassword(password)) {
-      Alert.alert('Error', 'Password does not meet all requirements');
+    // If there are validation errors, show them and stop
+    if (newErrors.username || newErrors.email || newErrors.password || newErrors.confirmPassword) {
+      setErrors(newErrors);
       return;
     }
 
@@ -50,7 +84,29 @@ export default function RegisterScreen() {
       // After registration, tokens are stored and user is logged in
       router.replace('/(tabs)');
     } catch (e: any) {
-      Alert.alert('Registration failed', e.message);
+      // Handle specific error cases with inline errors
+      const errorMessage = e.message || 'Registration failed';
+      const newErrors = { username: '', email: '', password: '', confirmPassword: '', general: '' };
+
+      // Parse multiple errors separated by " | "
+      const errorParts = errorMessage.split(' | ');
+
+      errorParts.forEach((error: string) => {
+        if (error.includes('Email already in use')) {
+          newErrors.email = 'This email is already registered. Try logging in instead.';
+        } else if (error.includes('Invalid email format')) {
+          newErrors.email = 'Please enter a valid email address (e.g., user@example.com)';
+        } else if (error.includes('Username already taken')) {
+          newErrors.username = 'This username is already taken. Please choose another.';
+        } else if (error.includes('Password must')) {
+          newErrors.password = error;
+        } else if (error.trim() && !newErrors.general) {
+          // Only set general error if it's not one of the specific errors
+          newErrors.general = error;
+        }
+      });
+
+      setErrors(newErrors);
     } finally {
       setLoading(false);
     }
@@ -67,37 +123,78 @@ export default function RegisterScreen() {
         <View style={styles.formContainer}>
           <Text style={styles.title}>Create Account</Text>
 
-          <TextInput
-            style={styles.input}
-            placeholder="Username"
-            value={username}
-            onChangeText={setUsername}
-            autoCapitalize="none"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Confirm Password"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry
-          />
+          {errors.general ? (
+            <View style={styles.generalError}>
+              <Text style={styles.generalErrorText}>{errors.general}</Text>
+            </View>
+          ) : null}
 
-          <PasswordRequirements password={password} />
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={[styles.input, errors.username && styles.inputError]}
+              placeholder="Username"
+              value={username}
+              onChangeText={(text) => {
+                setUsername(text);
+                if (errors.username) setErrors({ ...errors, username: '' });
+              }}
+              autoCapitalize="none"
+            />
+            {errors.username ? (
+              <Text style={styles.errorText}>{errors.username}</Text>
+            ) : null}
+          </View>
+
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={[styles.input, errors.email && styles.inputError]}
+              placeholder="Email"
+              value={email}
+              onChangeText={(text) => {
+                setEmail(text);
+                if (errors.email) setErrors({ ...errors, email: '' });
+              }}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            {errors.email ? (
+              <Text style={styles.errorText}>{errors.email}</Text>
+            ) : null}
+          </View>
+
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={[styles.input, errors.password && styles.inputError]}
+              placeholder="Password"
+              value={password}
+              onChangeText={(text) => {
+                setPassword(text);
+                if (errors.password) setErrors({ ...errors, password: '' });
+              }}
+              secureTextEntry
+            />
+            {errors.password ? (
+              <Text style={styles.errorText}>{errors.password}</Text>
+            ) : null}
+          </View>
+
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={[styles.input, errors.confirmPassword && styles.inputError]}
+              placeholder="Confirm Password"
+              value={confirmPassword}
+              onChangeText={(text) => {
+                setConfirmPassword(text);
+                if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: '' });
+              }}
+              secureTextEntry
+            />
+            {errors.confirmPassword ? (
+              <Text style={styles.errorText}>{errors.confirmPassword}</Text>
+            ) : null}
+          </View>
+
+          <PasswordRequirements password={password} confirmPassword={confirmPassword} />
 
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
@@ -132,9 +229,37 @@ const styles = StyleSheet.create({
     maxWidth: 450,
   },
   title: { fontSize: 28, fontWeight: 'bold', marginBottom: 32 },
+  inputContainer: {
+    marginBottom: 16,
+  },
   input: {
     borderWidth: 1, borderColor: '#ddd', borderRadius: 10,
-    padding: 14, marginBottom: 16, fontSize: 16, backgroundColor: '#fafafa',
+    padding: 14, fontSize: 16, backgroundColor: '#fafafa',
+  },
+  inputError: {
+    borderColor: '#FF6B6B',
+    borderWidth: 2,
+    backgroundColor: '#FFF5F5',
+  },
+  errorText: {
+    color: '#FF6B6B',
+    fontSize: 13,
+    marginTop: 6,
+    marginLeft: 4,
+  },
+  generalError: {
+    backgroundColor: '#FFEBEE',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#FF6B6B',
+  },
+  generalErrorText: {
+    color: '#D32F2F',
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
   },
   button: {
     backgroundColor: '#6C63FF', borderRadius: 10,

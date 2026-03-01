@@ -2,9 +2,17 @@ import bcrypt from 'bcrypt';
 import { User } from '../../models/user.model';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../utils/jwt';
 
+const validateEmail = (email: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
 const validatePassword = (password: string): { valid: boolean; message?: string } => {
   if (password.length < 8) {
     return { valid: false, message: 'Password must be at least 8 characters' };
+  }
+  if (password.length > 128) {
+    return { valid: false, message: 'Password is too long (max 128 characters)' };
   }
   if (!/[A-Z]/.test(password)) {
     return { valid: false, message: 'Password must contain at least one uppercase letter' };
@@ -22,15 +30,30 @@ const validatePassword = (password: string): { valid: boolean; message?: string 
 };
 
 export const registerUser = async (email: string, username: string, password: string) => {
-  const existingEmail = await User.findOne({ email });
-  if (existingEmail) throw new Error('Email already in use');
+  // Check all validation errors at once
+  const errors: string[] = [];
 
-  const existingUsername = await User.findOne({ username });
-  if (existingUsername) throw new Error('Username already taken');
+  // Validate email format first
+  if (!validateEmail(email)) {
+    errors.push('Invalid email format');
+  }
+
+  const [existingEmail, existingUsername] = await Promise.all([
+    User.findOne({ email }),
+    User.findOne({ username })
+  ]);
+
+  if (existingEmail) errors.push('Email already in use');
+  if (existingUsername) errors.push('Username already taken');
 
   const passwordValidation = validatePassword(password);
   if (!passwordValidation.valid) {
-    throw new Error(passwordValidation.message);
+    errors.push(passwordValidation.message!);
+  }
+
+  // If there are any errors, throw them all at once
+  if (errors.length > 0) {
+    throw new Error(errors.join(' | '));
   }
 
   const passwordHash = await bcrypt.hash(password, 12);

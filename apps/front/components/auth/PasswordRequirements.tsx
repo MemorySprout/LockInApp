@@ -2,9 +2,10 @@ import { View, Text, StyleSheet } from 'react-native';
 
 interface PasswordRequirementsProps {
   password: string;
+  confirmPassword?: string;
 }
 
-export default function PasswordRequirements({ password }: PasswordRequirementsProps) {
+export default function PasswordRequirements({ password, confirmPassword }: PasswordRequirementsProps) {
   const requirements = [
     {
       text: 'At least 8 characters',
@@ -27,6 +28,14 @@ export default function PasswordRequirements({ password }: PasswordRequirementsP
       met: /[!@#$%^&*(),.?":{}|<>]/.test(password)
     },
   ];
+
+  // Add password match requirement if confirmPassword is provided
+  if (confirmPassword !== undefined) {
+    requirements.push({
+      text: 'Passwords match',
+      met: password.length > 0 && confirmPassword.length > 0 && password === confirmPassword
+    });
+  }
 
   const allMet = requirements.every(req => req.met);
 
