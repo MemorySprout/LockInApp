@@ -3,7 +3,7 @@ import { signAccessToken, signRefreshToken } from '../../utils/jwt';
 import { User } from '../../models/user.model';
 
 export const googleOAuthCallback = async (req: Request, res: Response) => {
-    try{
+    try {
         const user = req.user as any;
         if (!user) return res.status(400).json({ message: 'No user from Google' });
 
@@ -15,11 +15,14 @@ export const googleOAuthCallback = async (req: Request, res: Response) => {
         user.lastLoginAt = new Date();
         await user.save();
         
-        const redirectUri = (req.session as any)?.redirect_uri || 
+        const redirectUri = (req.query.state as string) || 
                             process.env.FRONTEND_URL || 
                             'http://localhost:3000';
-        res.redirect(`${redirectUri}?accessToken=${accessToken}&refreshToken=${refreshToken}`);
-        }catch(err){
+
+        res.redirect(
+            `${redirectUri}?accessToken=${accessToken}&refreshToken=${refreshToken}&userId=${user._id}`
+        );
+    } catch (err) {
         console.error('Google OAuth callback error:', err);
         res.status(500).json({ message: 'Internal server error' });
     }

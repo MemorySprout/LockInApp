@@ -9,10 +9,10 @@ const router = Router();
 router.get(
   '/google',
   (req, res, next) => {
-    req.session.redirect_uri = req.query.redirect_uri;
-    next();
-  },
-  passport.authenticate('google', { scope: ['profile', 'email'] })
+    const redirectUri = req.query.state as string;
+  passport.authenticate('google', { scope: ['profile', 'email'], state: redirectUri
+    })(req, res, next);
+  }
 );
 
 router.get(
