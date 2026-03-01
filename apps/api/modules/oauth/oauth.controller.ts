@@ -14,11 +14,12 @@ export const googleOAuthCallback = async (req: Request, res: Response) => {
         user.refreshToken = refreshToken;
         user.lastLoginAt = new Date();
         await user.save();
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-        res.redirect(
-            `${frontendUrl}/auth-success?accessToken=${accessToken}&refreshToken=${refreshToken}&userId=${user._id}`
-        );
-    }catch(err){
+        
+        const redirectUri = (req.session as any)?.redirect_uri || 
+                            process.env.FRONTEND_URL || 
+                            'http://localhost:3000';
+        res.redirect(`${redirectUri}?accessToken=${accessToken}&refreshToken=${refreshToken}`);
+        }catch(err){
         console.error('Google OAuth callback error:', err);
         res.status(500).json({ message: 'Internal server error' });
     }

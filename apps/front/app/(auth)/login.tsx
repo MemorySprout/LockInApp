@@ -69,7 +69,7 @@ export default function LoginScreen() {
         style={[styles.googleButton, loading && styles.buttonDisabled]}
         onPress={handleGoogleLogin}
         disabled={loading}>
-        <Text style={styles.googleButtonText}>Continue with Google</Text>
+        <Text>Continue with Google</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -79,6 +79,10 @@ export default function LoginScreen() {
         {loading
           ? <ActivityIndicator color="#fff" />
           : <Text style={styles.buttonText}>Log In</Text>}
+      </TouchableOpacity>
+
+      <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
+        <Text style={styles.link}>Don't have an account? Register</Text>
       </TouchableOpacity>
 
     </KeyboardAvoidingView>

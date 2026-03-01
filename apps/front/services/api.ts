@@ -79,9 +79,9 @@ export const api = {
 
 export const oauthLogin = async () => {
   try {
-    const redirectUri = Linking.createURL('/(auth)/login');
+    const redirectUri = Linking.createURL('');
     const result = await WebBrowser.openAuthSessionAsync(
-      `${BASE_URL}/api/auth/google?redirectUri=${encodeURIComponent(redirectUri)}`,
+      `${BASE_URL}/api/oauth/google?redirect_uri=${encodeURIComponent(redirectUri)}`,
       redirectUri
     );
     if (result.type === 'success') {
