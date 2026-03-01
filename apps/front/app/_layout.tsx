@@ -3,7 +3,7 @@ import { Stack, router, useSegments } from 'expo-router';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 
-function RootGuard() {
+function NavigationContent() {
   const { isLoggedIn, isLoading } = useAuth();
   const segments = useSegments();
 
@@ -19,7 +19,6 @@ function RootGuard() {
     }
   }, [isLoggedIn, isLoading, segments]);
 
-  // Show loading screen while checking auth
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -28,7 +27,7 @@ function RootGuard() {
     );
   }
 
-  return null;
+  return <Stack screenOptions={{ headerShown: false }} />;
 }
 
 const styles = StyleSheet.create({
@@ -43,8 +42,7 @@ const styles = StyleSheet.create({
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <RootGuard />
-      <Stack screenOptions={{ headerShown: false }} />
+      <NavigationContent />
     </AuthProvider>
   );
 }
