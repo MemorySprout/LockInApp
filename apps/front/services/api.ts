@@ -79,31 +79,95 @@ export const api = {
   },
 };
 
+const isWeb = typeof window !== 'undefined';
+
 export const oauthLogin = async () => {
   try {
-    const redirectUri = Linking.createURL('oauth-callback');
-    const result = await WebBrowser.openAuthSessionAsync(
-      `${BASE_URL}/api/oauth/google?redirect_uri=${encodeURIComponent(redirectUri)}`,
-      redirectUri
-    );
-    if (result.type === 'success') {
-      const parsedUrl = Linking.parse(result.url);
-      const accessToken = parsedUrl.queryParams?.accessToken as string;
-      const refreshToken = parsedUrl.queryParams?.refreshToken as string;
-
-      if (accessToken && refreshToken) {
-        await storeTokens(accessToken, refreshToken);
-        return true; 
-      } else {
-        throw new Error('Tokens missing from redirect URL');
-      }
+    if (isWeb) {
+      return await webOAuthLogin();
+    } else {
+      return await nativeOAuthLogin();
     }
-
-    return false; 
   } catch (error: any) {
     console.error("OAuth Error: ", error);
     throw new Error(error.message || 'Google login failed');
   }
 };
+
+const webOAuthLogin = async (): Promise<boolean> => {
+  try {
+    const currentUrl = window.location.href;
+    window.location.href = `${BASE_URL}/api/oauth/google?redirect_uri=${encodeURIComponent(currentUrl)}`;
+    return true;
+  } catch (error: any) {
+    console.error("Web OAuth Error: ", error);
+    throw error;
+  }
+};
+
+const nativeOAuthLogin = async (): Promise<boolean> => {
+  try {
+    const redirectUri = Linking.createURL('oauth-callback');
+    
+    const result = await WebBrowser.openAuthSessionAsync(
+      `${BASE_URL}/api/oauth/google?redirect_uri=${encodeURIComponent(redirectUri)}`,
+      redirectUri,
+      {
+        showInRecents: true,
+      }
+    );
+
+    if (result.type === 'success') {
+      const url = result.url;
+      console.log('OAuth Callback URL:', url);
+      
+      const parsed = Linking.parse(url);
+      const params = parsed.queryParams || {};
+      
+      const accessToken = params.accessToken as string;
+      const refreshToken = params.refreshToken as string;
+
+      if (accessToken && refreshToken) {
+        await storeTokens(accessToken, refreshToken);
+        return true; 
+      } else {
+        console.error('Missing tokens in redirect:', params);
+        throw new Error('Tokens missing from redirect URL');
+      }
+    } else if (result.type === 'cancel') {
+      console.log('OAuth cancelled by user');
+      return false;
+    }
+
+    return false; 
+  } catch (error: any) {
+    console.error("Native OAuth Error: ", error);
+    throw error;
+  }
+};
+
+if (isWeb && typeof window !== 'undefined') {
+  const handleOAuthCallback = async () => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const accessToken = params.get('accessToken');
+      const refreshToken = params.get('refreshToken');
+
+      if (accessToken && refreshToken) {
+        await storeTokens(accessToken, refreshToken);
+        window.history.replaceState({}, document.title, window.location.pathname);
+        window.dispatchEvent(new Event('oauth-success'));
+        return true;
+      }
+    } catch (error) {
+      console.error('OAuth callback handling error:', error);
+    }
+    return false;
+  };
+
+  if (window.location.search.includes('accessToken')) {
+    handleOAuthCallback();
+  }
+}
 
 export { authFetch };

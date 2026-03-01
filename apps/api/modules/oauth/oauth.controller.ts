@@ -15,10 +15,17 @@ export const googleOAuthCallback = async (req: Request, res: Response) => {
         user.lastLoginAt = new Date();
         await user.save();
         
-        const redirectUri = (req.query.state as string) || 
-                            process.env.FRONTEND_URL || 
-                            'http://localhost:3000';
-
+        let redirectUri: string;
+        try {
+            const state = req.query.state as string;
+            redirectUri = state 
+                ? Buffer.from(state, 'base64').toString('utf-8')
+                : (process.env.FRONTEND_URL || 'http://localhost:3000');
+        } catch (err) {
+            redirectUri = process.env.FRONTEND_URL || 'http://localhost:3000';
+        }
+        res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+        
         res.redirect(
             `${redirectUri}?accessToken=${accessToken}&refreshToken=${refreshToken}&userId=${user._id}`
         );
@@ -28,7 +35,6 @@ export const googleOAuthCallback = async (req: Request, res: Response) => {
     }
 };
 
-//@Sorrger to ważne żeby nie robić duplikatow kont jak ktos sie loguje na localu a potem przez googla
 export const linkProvider = async (req: Request, res: Response) => {
     try{
         const provider = req.body.provider;
