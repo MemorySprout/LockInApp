@@ -13,8 +13,13 @@ dotenv.config();
 
 const app = express();
 
-app.use(cors({ 
-  origin: process.env.FRONTEND_URL,
+const FRONTEND_URL = process.env.FRONTEND_URL;
+if (!FRONTEND_URL) {
+  console.warn('WARNING: FRONTEND_URL not set — CORS will reject all cross-origin requests');
+}
+
+app.use(cors({
+  origin: FRONTEND_URL || false,
   credentials: true
 }));
 
@@ -23,10 +28,16 @@ app.use(express.json());
 app.use(
   session({
     name: 'sid',
-    secret: process.env.SESSION_SECRET || 'dev-secret',
+    secret: (() => {
+      const secret = process.env.SESSION_SECRET;
+      if (!secret && process.env.NODE_ENV === 'production') {
+        throw new Error('SESSION_SECRET must be set in production');
+      }
+      return secret || 'dev-secret';
+    })(),
     resave: false,
     saveUninitialized: false,
-    cookie: { httpOnly: true, sameSite: 'lax', secure: false },
+    cookie: { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' },
   })
 );
 

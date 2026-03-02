@@ -2,10 +2,11 @@ import bcrypt from 'bcrypt';
 import { User } from '../../models/user.model';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../utils/jwt';
 
-const validateEmail = (email: string): boolean => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-};
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+
+// Pre-computed hash used for dummy comparison to prevent timing attacks
+const DUMMY_HASH = '$2b$12$LJ3m4ys3Lg2VBe8S/dOnzuSAMFJMaOeymHGJkJSybCBbSmOFBqCfy';
 
 const validatePassword = (password: string): { valid: boolean; message?: string } => {
   if (password.length < 8) {
@@ -30,12 +31,8 @@ const validatePassword = (password: string): { valid: boolean; message?: string 
 };
 
 export const registerUser = async (email: string, username: string, password: string) => {
-  // Check all validation errors at once
+  // Check all validation errors at once (email format already validated by zod)
   const errors: string[] = [];
-
-  if (!validateEmail(email)) {
-    errors.push('Invalid email format');
-  }
 
   const [existingEmail, existingUsername] = await Promise.all([
     User.findOne({ email }),
@@ -62,7 +59,7 @@ export const registerUser = async (email: string, username: string, password: st
   const accessToken = signAccessToken(payload);
   const refreshToken = signRefreshToken(payload);
 
-  user.refreshToken = refreshToken;
+  user.refreshToken = await bcrypt.hash(refreshToken, 10);
   await user.save();
 
   return { accessToken, refreshToken, user: { id: user._id, email: user.email, username: user.username } };
@@ -71,17 +68,34 @@ export const registerUser = async (email: string, username: string, password: st
 export const loginUser = async (email: string, password: string) => {
   const user = await User.findOne({ email });
   if (!user || !user.passwordHash) {
+    // Perform dummy comparison to prevent timing-based user enumeration
+    await bcrypt.compare(password, DUMMY_HASH);
     throw new Error('Invalid credentials');
   }
 
+  if (user.lockUntil && user.lockUntil > new Date()) {
+    const minutesLeft = Math.ceil((user.lockUntil.getTime() - Date.now()) / 60000);
+    throw new Error(`Account temporarily locked. Try again in ${minutesLeft} minute(s)`);
+  }
+
   const valid = await user.comparePassword(password);
-  if (!valid) throw new Error('Invalid credentials');
+  if (!valid) {
+    user.loginAttempts = (user.loginAttempts || 0) + 1;
+    if (user.loginAttempts >= MAX_LOGIN_ATTEMPTS) {
+      user.lockUntil = new Date(Date.now() + LOCK_DURATION_MS);
+    }
+    await user.save();
+    throw new Error('Invalid credentials');
+  }
+
+  user.loginAttempts = 0;
+  user.lockUntil = null;
 
   const payload = { userId: user._id.toString(), email: user.email };
   const accessToken = signAccessToken(payload);
   const refreshToken = signRefreshToken(payload);
 
-  user.refreshToken = refreshToken;
+  user.refreshToken = await bcrypt.hash(refreshToken, 10);
   user.lastLoginAt = new Date();
   await user.save();
 
@@ -94,13 +108,16 @@ export const refreshTokens = async (refreshToken: string) => {
   const payload = verifyRefreshToken(refreshToken);
   const user = await User.findById(payload.userId);
 
-  if (!user || user.refreshToken !== refreshToken) throw new Error('Invalid refresh token');
+  if (!user || !user.refreshToken) throw new Error('Invalid refresh token');
+
+  const isValid = await bcrypt.compare(refreshToken, user.refreshToken);
+  if (!isValid) throw new Error('Invalid refresh token');
 
   const newPayload = { userId: user._id.toString(), email: user.email };
   const newAccessToken = signAccessToken(newPayload);
   const newRefreshToken = signRefreshToken(newPayload);
 
-  user.refreshToken = newRefreshToken;
+  user.refreshToken = await bcrypt.hash(newRefreshToken, 10);
   await user.save();
 
   return { accessToken: newAccessToken, refreshToken: newRefreshToken };

@@ -1,6 +1,19 @@
+import crypto from 'crypto';
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { User } from '../models/user.model';
+
+const generateUniqueUsername = async (displayName: string): Promise<string> => {
+  const base = displayName.replace(/[^a-zA-Z0-9_]/g, '_').substring(0, 24);
+  let username = base;
+
+  while (await User.findOne({ username })) {
+    const suffix = crypto.randomBytes(3).toString('hex');
+    username = `${base}_${suffix}`;
+  }
+
+  return username;
+};
 
 passport.use(
   new GoogleStrategy(
@@ -19,9 +32,10 @@ passport.use(
         let user = await User.findOne({ email });
 
         if (!user) {
+          const username = await generateUniqueUsername(profile.displayName);
           user = await User.create({
             email,
-            username: profile.displayName,
+            username,
             providers: ['google'],
             isVerified: true,
           });

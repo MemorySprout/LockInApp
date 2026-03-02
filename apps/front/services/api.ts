@@ -105,6 +105,15 @@ axiosInstance.interceptors.response.use(
   }
 );
 
+const sanitizeError = (message: string | undefined, fallback: string): string => {
+  if (!message || typeof message !== 'string') return fallback;
+  // Don't show raw JS errors to users
+  if (message.includes('Cannot read properties') || message.includes('undefined') || message.includes('TypeError')) {
+    return fallback;
+  }
+  return message;
+};
+
 export const api = {
   register: async (data: { email: string; username: string; password: string }) => {
     try {
@@ -112,7 +121,7 @@ export const api = {
       await storeTokens(response.data.accessToken, response.data.refreshToken);
       return response.data;
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Registration failed');
+      throw new Error(sanitizeError(error.response?.data?.message, 'Registration failed. Please try again.'));
     }
   },
 
@@ -122,7 +131,7 @@ export const api = {
       await storeTokens(response.data.accessToken, response.data.refreshToken);
       return response.data;
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Login failed');
+      throw new Error(sanitizeError(error.response?.data?.message, 'Login failed. Please try again.'));
     }
   },
 
@@ -171,11 +180,11 @@ const nativeOAuthLogin = async (): Promise<boolean> => {
 
     if (result.type === 'success') {
       const url = result.url;
-      const parsed = Linking.parse(url);
-      const params = parsed.queryParams || {};
+      const hashPart = url.split('#')[1] || '';
+      const params = new URLSearchParams(hashPart);
 
-      const accessToken = params.accessToken as string;
-      const refreshToken = params.refreshToken as string;
+      const accessToken = params.get('accessToken') as string;
+      const refreshToken = params.get('refreshToken') as string;
 
       if (accessToken && refreshToken) {
         await storeTokens(accessToken, refreshToken);
@@ -196,7 +205,7 @@ const nativeOAuthLogin = async (): Promise<boolean> => {
 if (isWeb && typeof window !== 'undefined') {
   const handleOAuthCallback = async () => {
     try {
-      const params = new URLSearchParams(window.location.search);
+      const params = new URLSearchParams(window.location.hash.slice(1));
       const accessToken = params.get('accessToken');
       const refreshToken = params.get('refreshToken');
 
@@ -212,7 +221,7 @@ if (isWeb && typeof window !== 'undefined') {
     return false;
   };
 
-  if (window.location.search.includes('accessToken')) {
+  if (window.location.hash.includes('accessToken')) {
     handleOAuthCallback();
   }
 }

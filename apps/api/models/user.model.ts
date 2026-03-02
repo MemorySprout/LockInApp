@@ -9,6 +9,8 @@ export interface IUser extends Document {
   refreshToken?: string;
   isVerified: boolean;
   lastLoginAt?: Date;
+  loginAttempts: number;
+  lockUntil?: Date | null;
   comparePassword(password: string): Promise<boolean>;
 }
 
@@ -21,6 +23,8 @@ const UserSchema = new Schema<IUser>(
     refreshToken: { type: String, default: null },
     isVerified: { type: Boolean, default: false },
     lastLoginAt: { type: Date },
+    loginAttempts: { type: Number, default: 0 },
+    lockUntil: { type: Date, default: null },
   },
   { timestamps: true }
 );
