@@ -126,6 +126,7 @@ export default function RegisterScreen() {
             <TextInput
               style={[styles.input, errors.username && styles.inputError]}
               placeholder="Username"
+              placeholderTextColor="#999"
               value={username}
               onChangeText={(text) => {
                 setUsername(text);
@@ -142,6 +143,7 @@ export default function RegisterScreen() {
             <TextInput
               style={[styles.input, errors.email && styles.inputError]}
               placeholder="Email"
+              placeholderTextColor="#999"
               value={email}
               onChangeText={(text) => {
                 setEmail(text);
@@ -159,6 +161,7 @@ export default function RegisterScreen() {
             <TextInput
               style={[styles.input, errors.password && styles.inputError]}
               placeholder="Password"
+              placeholderTextColor="#999"
               value={password}
               onChangeText={(text) => {
                 setPassword(text);
@@ -175,6 +178,7 @@ export default function RegisterScreen() {
             <TextInput
               style={[styles.input, errors.confirmPassword && styles.inputError]}
               placeholder="Confirm Password"
+              placeholderTextColor="#999"
               value={confirmPassword}
               onChangeText={(text) => {
                 setConfirmPassword(text);
